@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    initialization-mode: always
+    url: jdbc:postgresql://localhost:5432/sql_portal
+    username: postgres
+    password: postgres
+#    data: classpath:/populate_db.sql
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: none
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+##JWT
+sql-portal:
+  app:
+    jwtSecret: sqlPortalSecretKey
+    jwtExpirationMs: 86400000
+
