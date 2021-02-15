@@ -7,9 +7,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @AllArgsConstructor
-public class QuestionResponse {
+public class AnswerResponse {
     private Long id;
     private String text;
-    private AnswerResponse answer;
-    private TestResponse test;
+    private Integer grade;
 }

@@ -4,12 +4,16 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Date;
+import java.util.List;
+
 @Getter
 @Setter
 @AllArgsConstructor
-public class QuestionResponse {
+public class AttemptResponse {
     private Long id;
-    private String text;
-    private AnswerResponse answer;
+    private Date createdAt;
     private TestResponse test;
+    private UserResponse author;
+    private List<QuestionResponse> questions;
 }

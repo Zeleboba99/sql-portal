@@ -17,14 +17,18 @@ public class Course {
     @SequenceGenerator(name = "courseSeq", sequenceName = "COURSE_SEQUENCE", allocationSize = 1)
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "courseSeq")
     private Long id;
+
     @NotNull
     @Column(name = "name")
     private String name;
+
     @Column(name = "description")
     private String description;
+
     @ManyToOne
     @JoinColumn(name = "author_id")
     private User author;
+
     @OneToMany(mappedBy = "course", cascade = CascadeType.REMOVE)
     private List<Test> tests;
 

@@ -16,12 +16,15 @@ public class ExhaustedDb {
     @SequenceGenerator(name = "exhaustedDbSeq", sequenceName = "EXHAUSTED_DB_SEQUENCE", allocationSize = 1)
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "exhaustedDbSeq")
     private Long id;
+
     @NotNull
     @Column(name="name")
     private String name;
+
     @NotNull
     @Column(name="path")
     private String path;
+
     @ManyToOne
     @JoinColumn(name = "author_id")
     private User author;

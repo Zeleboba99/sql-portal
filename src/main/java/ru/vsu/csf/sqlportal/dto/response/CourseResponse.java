@@ -9,5 +9,6 @@ public class CourseResponse {
     private Long id;
     private String name;
     private String description;
+    private Long author_id;
     private String author;
 }

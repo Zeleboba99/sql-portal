@@ -12,8 +12,8 @@ import java.util.List;
 public class TestResponse {
     private Long id;
     private String name;
-    private String maxAttemptsCnt;
-    private ExhaustedDBResponse exhaustedDB;
+    private Integer maxAttemptsCnt;
+    private ExhaustedDBResponse exhaustedDb;
     private CourseResponse course;
     private List<QuestionResponse> questions;
 }

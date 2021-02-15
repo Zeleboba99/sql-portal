@@ -1,7 +1,7 @@
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    initialization-mode: always
+#    initialization-mode: always
     url: jdbc:postgresql://localhost:5432/sql_portal
     username: postgres
     password: postgres

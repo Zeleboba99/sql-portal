@@ -1,6 +1,10 @@
 package ru.vsu.csf.sqlportal.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import ru.vsu.csf.sqlportal.dto.request.CourseRequest;
@@ -26,27 +30,25 @@ public class CourseServiceImpl implements CourseService {
     private UserRepository userRepository;
 
     @Override
-    public List<CourseResponse> getCourses(Long author_id) {
-        return courseRepository.findAllByAuthorId(author_id).stream().map(
-                course -> {
-                    return new CourseResponse(course.getId(),
-                            course.getName(),
-                            course.getDescription(),
-                            course.getAuthor().getFirstName() + " " + course.getAuthor().getLastName());
-                }
+    public Page<CourseResponse> getCourses(Long author_id, int page, int size, boolean sort) {
+        Sort sortOrder = sort ? Sort.by("name").ascending() : Sort.by("name").descending();
+        Page<Course> coursePage = courseRepository.findAllByAuthorId(author_id, PageRequest.of(page, size, sortOrder));
+        long totalElements = coursePage.getTotalElements();
+        List<CourseResponse> courseResponses = coursePage.stream().map(
+                CourseServiceImpl::convertToCourseResponse
         ).collect(Collectors.toList());
+        return new PageImpl<>(courseResponses, PageRequest.of(page, size), totalElements);
     }
 
     @Override
-    public List<CourseResponse> getAllCourses() {
-        return courseRepository.findAll().stream().map(
-                course -> {
-                    return new CourseResponse(course.getId(),
-                            course.getName(),
-                            course.getDescription(),
-                            course.getAuthor().getFirstName() + " " + course.getAuthor().getLastName());
-                }
+    public Page<CourseResponse> getAllCourses(int page, int size, boolean sort) {
+        Sort sortOrder = sort ? Sort.by("name").ascending() : Sort.by("name").descending();
+        Page<Course> courseResponsePage = courseRepository.findAll(PageRequest.of(page, size, sortOrder));
+        long totalElements = courseResponsePage.getTotalElements();
+        List<CourseResponse> courseResponses = courseResponsePage.stream().map(
+                CourseServiceImpl::convertToCourseResponse
         ).collect(Collectors.toList());
+        return new PageImpl<>(courseResponses, PageRequest.of(page, size), totalElements);
     }
 
     @Override
@@ -57,6 +59,7 @@ public class CourseServiceImpl implements CourseService {
         return new CourseResponse(course.getId(),
                 course.getName(),
                 course.getDescription(),
+                course.getAuthor().getId(),
                 course.getAuthor().getFirstName() + " " + course.getAuthor().getLastName());
     }
 
@@ -71,24 +74,51 @@ public class CourseServiceImpl implements CourseService {
                 author);
 
         Course newCourse = courseRepository.save(course);
-        return new CourseResponse(newCourse.getId(),
-                newCourse.getName(),
-                newCourse.getDescription(),
-                newCourse.getAuthor().getFirstName() + " " + newCourse.getAuthor().getLastName());
+        return convertToCourseResponse(newCourse);
     }
 
     @Override
     public void deleteCourse(Long course_id) {
-        String authorLogin = SecurityContextHolder.getContext().getAuthentication().getName();
-        User author = userRepository.findByLogin(authorLogin).orElseThrow(
-                () -> new ResourceNotFoundException("User", "login", authorLogin)
-        );
+        User user = getCurrentUser();
         Course course = courseRepository.findById(course_id).orElseThrow(
                 () -> new ResourceNotFoundException("Course", "id", course_id)
         );
-        if (!author.getId().equals(course.getAuthor().getId())) {
-            throw new AbuseRightsException(authorLogin);
+        if (!user.getId().equals(course.getAuthor().getId())) {
+            throw new AbuseRightsException(user.getLogin());
         }
         courseRepository.deleteById(course_id);
+    }
+
+    @Override
+    public CourseResponse updateCourse(Long course_id, CourseRequest courseRequest) {
+        User user = getCurrentUser();
+        Course course = courseRepository.findById(course_id).orElseThrow(
+                () -> new ResourceNotFoundException("Course", "id", course_id)
+        );
+        if (!user.getId().equals(course.getAuthor().getId())) {
+            throw new AbuseRightsException(user.getLogin());
+        }
+        course.setName(courseRequest.getName());
+        course.setDescription(courseRequest.getDescription());
+        Course updatedCourse = courseRepository.save(course);
+        return convertToCourseResponse(updatedCourse);
+    }
+
+
+    private User getCurrentUser() {
+        String authorLogin = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByLogin(authorLogin).orElseThrow(
+                () -> new ResourceNotFoundException("User", "login", authorLogin)
+        );
+    }
+
+    private static CourseResponse convertToCourseResponse(Course course) {
+        return new CourseResponse(
+                course.getId(),
+                course.getName(),
+                course.getDescription(),
+                course.getAuthor().getId(),
+                course.getAuthor().getFirstName() + " " + course.getAuthor().getLastName()
+        );
     }
 }

@@ -4,12 +4,13 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+@AllArgsConstructor
 @Getter
 @Setter
-@AllArgsConstructor
-public class QuestionResponse {
+public class UserResponse {
     private Long id;
-    private String text;
-    private AnswerResponse answer;
-    private TestResponse test;
+    private String login;
+    private String firstName;
+    private String lastName;
+    private String role;
 }

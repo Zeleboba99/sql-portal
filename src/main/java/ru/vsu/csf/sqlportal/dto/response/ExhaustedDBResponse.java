@@ -8,4 +8,6 @@ import lombok.Data;
 public class ExhaustedDBResponse {
     private Long id;
     private String name;
+    private Long author_id;
+    private String author;
 }

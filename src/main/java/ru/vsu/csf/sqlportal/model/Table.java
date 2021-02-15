@@ -12,7 +12,7 @@ import java.util.Map;
 @Setter
 public class Table {
     private String name;
-    private Map<String, String> fields = new HashMap<>();
+    private List<List<String>> fields = new ArrayList<>();
     private List<List<?>> data = new ArrayList<>();
 
     public Table() {

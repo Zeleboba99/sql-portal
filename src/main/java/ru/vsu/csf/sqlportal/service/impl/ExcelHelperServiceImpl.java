@@ -5,11 +5,17 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import ru.vsu.csf.sqlportal.dto.request.CreateDBRequest;
 import ru.vsu.csf.sqlportal.dto.response.ExhaustedDBResponse;
+import ru.vsu.csf.sqlportal.exception.AbuseRightsException;
 import ru.vsu.csf.sqlportal.exception.ResourceNotFoundException;
 import ru.vsu.csf.sqlportal.model.Database;
 import ru.vsu.csf.sqlportal.model.ExhaustedDb;
@@ -23,6 +29,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ExcelHelperServiceImpl implements ExcelHelperService {
@@ -35,36 +42,77 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
 
     private String fileLocation;
 
+    @Transactional
     @Override
-    public ExhaustedDBResponse save(CreateDBRequest createDbRequest, MultipartFile file) throws IOException {
-
-        InputStream in = file.getInputStream();
-        File currDir = new File(".");
-        String path = currDir.getAbsolutePath();
-        fileLocation = path.substring(0, path.length() - 1).concat("src\\main\\resources\\excel\\");
-        fileLocation = fileLocation.concat(Objects.requireNonNull(file.getOriginalFilename()));
-        FileOutputStream f = new FileOutputStream(fileLocation);
-        int ch = 0;
-        while ((ch = in.read()) != -1) {
-            f.write(ch);
-        }
-        f.flush();
-        f.close();
+    public ExhaustedDBResponse save(String dbName, MultipartFile file) throws IOException {
 
         String authorLogin = SecurityContextHolder.getContext().getAuthentication().getName();
         User author = userRepository.findByLogin(authorLogin).orElseThrow(
                 () -> new ResourceNotFoundException("User", "login", authorLogin)
         );
         ExhaustedDb exhaustedDb = new ExhaustedDb(
-                createDbRequest.getName(),
-                fileLocation,
+                dbName,
+                null,
                 author);
         ExhaustedDb savedDb = exhaustedDbRepository.save(exhaustedDb);
-        return new ExhaustedDBResponse(exhaustedDb.getId(),
-                exhaustedDb.getName(),
-                exhaustedDb.getPath());
+
+//        InputStream in = file.getInputStream();
+
+        File currDir = new File(".");
+        String path = currDir.getAbsolutePath();
+        fileLocation = path.substring(0, path.length() - 1).concat("src\\main\\resources\\excel\\")
+                .concat(exhaustedDb.getId().toString())
+                .concat(".xlsx");
+
+        File newFile = new File(fileLocation);
+        file.transferTo(newFile);
+//        fileLocation = fileLocation.concat(Objects.requireNonNull(file.getOriginalFilename()));
+//        FileOutputStream f = new FileOutputStream(fileLocation);
+//        int ch = 0;
+//        while ((ch = in.read()) != -1) {
+//            f.write(ch);
+//        }
+//        f.flush();
+//        f.close();
+
+
+
+//        fileLocation = fileLocation.concat(savedDb.getId().toString()).concat(".xlsx");
+        savedDb.setPath(fileLocation);
+        savedDb = exhaustedDbRepository.save(savedDb);
+        return convertToExhaustedDBResponse(savedDb);
     }
 
+    @Override
+    public Page<ExhaustedDBResponse> getAllDBs(int page, int size, boolean sort) {
+        Sort sortOrder = sort ? Sort.by("name").ascending() : Sort.by("name").descending();
+        Page<ExhaustedDb> exhaustedDbs = exhaustedDbRepository.findAll(PageRequest.of(page, size, sortOrder));
+        long totalElements = exhaustedDbs.getTotalElements();
+        List<ExhaustedDBResponse> exhaustedDBResponses = exhaustedDbs.stream()
+                .map(this::convertToExhaustedDBResponse)
+                .collect(Collectors.toList());
+        return new PageImpl<>(exhaustedDBResponses, PageRequest.of(page, size), totalElements);
+    }
+
+    @Override
+    public List<ExhaustedDBResponse> getAllDBs() {
+        return exhaustedDbRepository.findAll().stream()
+                .map(this::convertToExhaustedDBResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<ExhaustedDBResponse> getAllDBsByAuthorId(Long authorId, int page, int size, boolean sort) {
+        Sort sortOrder = sort ? Sort.by("name").ascending() : Sort.by("name").descending();
+        Page<ExhaustedDb> exhaustedDbs = exhaustedDbRepository.findAllByAuthorId(authorId, PageRequest.of(page, size, sortOrder));
+        long totalElements = exhaustedDbs.getTotalElements();
+        List<ExhaustedDBResponse> exhaustedDBResponses = exhaustedDbs.stream()
+                .map(this::convertToExhaustedDBResponse)
+                .collect(Collectors.toList());
+        return new PageImpl<>(exhaustedDBResponses, PageRequest.of(page, size), totalElements);
+    }
+
+    @Deprecated
     @Override
     public InputStreamResource getExcelDB(Long id) throws IOException {
         byte[] result = Files.readAllBytes(Paths.get("C:\\Users\\kate2\\Desktop\\диплом\\sql-portal\\src\\main\\resources\\excel\\Книга1.xlsx"));
@@ -73,7 +121,7 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
     }
 
     @Override
-    public Database getDB(Long db_id) throws IOException{
+    public Database getDB(Long db_id) throws IOException {
         ExhaustedDb exhaustedDbRecord = exhaustedDbRepository.findById(db_id).orElseThrow(
                 () -> new ResourceNotFoundException("ExhaustedDB", "id", db_id)
         );
@@ -125,7 +173,7 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
                         table.setName(temp);
                     } else if (j == 1) {
                         String[] field = temp.split("\\|");
-                        table.getFields().put(field[0], field[1]);
+                        table.getFields().add(Arrays.asList(field[0], field[1]));
                     } else {
                         insertData.add(temp);
                     }
@@ -138,5 +186,36 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
             db.getTables().add(table);
         }
         return db;
+    }
+
+    @Override
+    public void deleteDB(Long db_id) {
+        User user = getCurrentUser();
+        ExhaustedDb exhaustedDb = exhaustedDbRepository.findById(db_id).orElseThrow(
+                () -> new ResourceNotFoundException("ExhaustedDB", "id", db_id)
+        );
+        if (!user.getId().equals(exhaustedDb.getAuthor().getId())) {
+            throw new AbuseRightsException(user.getLogin());
+        }
+        File file = new File(exhaustedDb.getPath());
+        if (file.delete()) {
+            exhaustedDbRepository.delete(exhaustedDb);
+        } else {
+            //todo throw some exception (mb just runtime ex)
+        }
+    }
+
+    private ExhaustedDBResponse convertToExhaustedDBResponse(ExhaustedDb exhaustedDb) {
+        return new ExhaustedDBResponse(exhaustedDb.getId(),
+                exhaustedDb.getName(),
+                exhaustedDb.getAuthor().getId(),
+                exhaustedDb.getAuthor().getFirstName() + " " + exhaustedDb.getAuthor().getLastName());
+    }
+
+    private User getCurrentUser() {
+        String authorLogin = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByLogin(authorLogin).orElseThrow(
+                () -> new ResourceNotFoundException("User", "login", authorLogin)
+        );
     }
 }
