@@ -13,7 +13,7 @@ public class TestResponse {
     private Long id;
     private String name;
     private Integer maxAttemptsCnt;
-    private ExhaustedDBResponse exhaustedDb;
+    private DbLocationResponse dbLocation;
     private CourseResponse course;
     private List<QuestionResponse> questions;
 }

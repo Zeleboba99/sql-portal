@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class ExhaustedDbRequest {
+public class DbLocationRequest {
     private Long id;
     private String name;
     private Long author_id;

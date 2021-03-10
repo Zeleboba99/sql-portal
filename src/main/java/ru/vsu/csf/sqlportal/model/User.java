@@ -43,7 +43,13 @@ public class User {
     private List<Course> courses;
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.REMOVE)
-    private List<ExhaustedDb> exhaustedDbs;
+    private List<DbLocation> dbLocations;
+
+    @OneToMany(mappedBy = "author", cascade = CascadeType.REMOVE)
+    private List<Answer> answers;
+
+    @OneToMany(mappedBy = "author", cascade = CascadeType.REMOVE)
+    private List<Attempt> attempts;
 
     public User() {
     }

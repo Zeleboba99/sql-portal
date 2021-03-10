@@ -10,12 +10,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import ru.vsu.csf.sqlportal.dto.request.CreateDBRequest;
-import ru.vsu.csf.sqlportal.dto.response.ExhaustedDBResponse;
+import ru.vsu.csf.sqlportal.dto.response.DbLocationResponse;
 import ru.vsu.csf.sqlportal.model.Database;
 import ru.vsu.csf.sqlportal.service.ExcelHelperService;
 
-import javax.validation.Valid;
 import java.io.IOException;
 import java.util.List;
 
@@ -36,7 +34,7 @@ public class CreateDBController {
 
     @PreAuthorize("hasAnyAuthority('STUDENT', 'TEACHER')")
     @GetMapping("/pageable")
-    public Page<ExhaustedDBResponse> getDBsPage(@RequestParam("page") int page,
+    public Page<DbLocationResponse> getDBsPage(@RequestParam("page") int page,
                                                @RequestParam("size") int size,
                                                @RequestParam(value = "sort", defaultValue = "true") boolean sort) throws IOException {
         return excelHelperService.getAllDBs(page, size, sort);
@@ -44,16 +42,16 @@ public class CreateDBController {
 
     @PreAuthorize("hasAnyAuthority('STUDENT', 'TEACHER')")
     @GetMapping
-    public List<ExhaustedDBResponse> getAllDBs() throws IOException {
+    public List<DbLocationResponse> getAllDBs() throws IOException {
         return excelHelperService.getAllDBs();
     }
 
     @PreAuthorize("hasAnyAuthority('STUDENT', 'TEACHER')")
     @GetMapping("/author/{author_id}")
-    public Page<ExhaustedDBResponse> getDBsByAuthorId(@PathVariable("author_id") Long author_id,
-                                                      @RequestParam("page") int page,
-                                                      @RequestParam("size") int size,
-                                                      @RequestParam(value = "sort", defaultValue = "true") boolean sort) throws IOException {
+    public Page<DbLocationResponse> getDBsByAuthorId(@PathVariable("author_id") Long author_id,
+                                                     @RequestParam("page") int page,
+                                                     @RequestParam("size") int size,
+                                                     @RequestParam(value = "sort", defaultValue = "true") boolean sort) throws IOException {
         return excelHelperService.getAllDBsByAuthorId(author_id, page, size, sort);
     }
 
@@ -79,7 +77,7 @@ public class CreateDBController {
                                            @PathVariable("dbName") String dbName){
         String message = "";
         try {
-            ExhaustedDBResponse response = excelHelperService.save(dbName, multipartFile);
+            DbLocationResponse response = excelHelperService.save(dbName, multipartFile);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         }
         catch (Exception e){

@@ -22,7 +22,7 @@ public class TestServiceImpl implements TestService {
     @Autowired
     private TestRepository testRepository;
     @Autowired
-    private ExhaustedDbRepository exhaustedDbRepository;
+    private DbLocationRepository dbLocationRepository;
     @Autowired
     private CourseRepository courseRepository;
     @Autowired
@@ -39,13 +39,13 @@ public class TestServiceImpl implements TestService {
         List<Test> tests = testRepository.findAllByCourse_Id(course_id);
         return tests.stream()
                 .map(t -> {
-                    ExhaustedDb exhaustedDb = t.getExhaustedDB();
-                    ExhaustedDBResponse exhaustedDBResponse = convertToExhaustedDBResponse(exhaustedDb);
+                    DbLocation dbLocation = t.getDbLocation();
+                    DbLocationResponse dbLocationResponse = convertToDbLocationResponse(dbLocation);
                     TestResponse testResponse = new TestResponse(
                             t.getId(),
                             t.getName(),
                             t.getMaxAttemptsCnt(),
-                            exhaustedDBResponse,
+                            dbLocationResponse,
                             null,
                             null
                     );
@@ -61,8 +61,8 @@ public class TestServiceImpl implements TestService {
         Test test = testRepository.findById(test_id).orElseThrow(
                 () -> new ResourceNotFoundException("Test", "id", test_id)
         );
-        ExhaustedDb exhaustedDb = test.getExhaustedDB();
-        ExhaustedDBResponse exhaustedDBResponse = convertToExhaustedDBResponse(exhaustedDb);
+        DbLocation dbLocation = test.getDbLocation();
+        DbLocationResponse dbLocationResponse = convertToDbLocationResponse(dbLocation);
         List<QuestionResponse> questionList = test.getQuestions().stream().map(
                 question -> {
                     AnswerResponse answerResponse = new AnswerResponse(null, "", null);
@@ -90,7 +90,7 @@ public class TestServiceImpl implements TestService {
                 test.getId(),
                 test.getName(),
                 test.getMaxAttemptsCnt(),
-                exhaustedDBResponse,
+                dbLocationResponse,
                 null,
                 questionList
         );
@@ -109,12 +109,12 @@ public class TestServiceImpl implements TestService {
         if (!course.getAuthor().getId().equals(author.getId())) {
             throw new AbuseRightsException(String.format("User '%s' is not author for course '%s'", author.getLogin(), course.getId()));
         }
-        ExhaustedDb exhaustedDb = exhaustedDbRepository.findById(testRequest.getExhaustedDb().getId()).orElseThrow(
-                () -> new ResourceNotFoundException("ExhaustedDB", "id", testRequest.getExhaustedDb().getId())
+        DbLocation dbLocation = dbLocationRepository.findById(testRequest.getDbLocation().getId()).orElseThrow(
+                () -> new ResourceNotFoundException("DbLocation", "id", testRequest.getDbLocation().getId())
         );
         Test test = new Test(testRequest.getName(),
                 testRequest.getMaxAttemptsCnt(),
-                exhaustedDb,
+                dbLocation,
                 course,
                 null);
         test = testRepository.save(test);
@@ -259,21 +259,21 @@ public class TestServiceImpl implements TestService {
         Test test = testRepository.findById(test_id).orElseThrow(
                 () -> new ResourceNotFoundException("Test", "id", test_id)
         );
-        ExhaustedDb exhaustedDb = exhaustedDbRepository.findById(testRequest.getExhaustedDb().getId()).orElseThrow(
-                () -> new ResourceNotFoundException("ExhaustedDb", "id", testRequest.getExhaustedDb().getId())
+        DbLocation dbLocation = dbLocationRepository.findById(testRequest.getDbLocation().getId()).orElseThrow(
+                () -> new ResourceNotFoundException("DbLocation", "id", testRequest.getDbLocation().getId())
         );
         if (!isCurrentUserCourseAuthor(test.getCourse().getId())) {
             throw new AbuseRightsException(String.format("User '%s' is not author for course '%s'", user.getLogin(), test.getCourse().getId()));
         }
         test.setName(testRequest.getName());
         test.setMaxAttemptsCnt(testRequest.getMaxAttemptsCnt());
-        test.setExhaustedDB(exhaustedDb);
+        test.setDbLocation(dbLocation);
         Test updatedTest = testRepository.save(test);
         return new TestResponse(
                 updatedTest.getId(),
                 updatedTest.getName(),
                 updatedTest.getMaxAttemptsCnt(),
-                convertToExhaustedDBResponse(updatedTest.getExhaustedDB()),
+                convertToDbLocationResponse(updatedTest.getDbLocation()),
                 null,
                 null
         );
@@ -336,11 +336,11 @@ public class TestServiceImpl implements TestService {
                 });
     }
 
-    private ExhaustedDBResponse convertToExhaustedDBResponse(ExhaustedDb exhaustedDb) {
-        return new ExhaustedDBResponse(exhaustedDb.getId(),
-                exhaustedDb.getName(),
-                exhaustedDb.getAuthor().getId(),
-                exhaustedDb.getAuthor().getFirstName() + " " + exhaustedDb.getAuthor().getLastName());
+    private DbLocationResponse convertToDbLocationResponse(DbLocation dbLocation) {
+        return new DbLocationResponse(dbLocation.getId(),
+                dbLocation.getName(),
+                dbLocation.getAuthor().getId(),
+                dbLocation.getAuthor().getFirstName() + " " + dbLocation.getAuthor().getLastName());
     }
 
     private boolean isCurrentUserCourseAuthor(Long course_id) {

@@ -13,15 +13,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import ru.vsu.csf.sqlportal.dto.request.CreateDBRequest;
-import ru.vsu.csf.sqlportal.dto.response.ExhaustedDBResponse;
+import ru.vsu.csf.sqlportal.dto.response.DbLocationResponse;
 import ru.vsu.csf.sqlportal.exception.AbuseRightsException;
 import ru.vsu.csf.sqlportal.exception.ResourceNotFoundException;
 import ru.vsu.csf.sqlportal.model.Database;
-import ru.vsu.csf.sqlportal.model.ExhaustedDb;
+import ru.vsu.csf.sqlportal.model.DbLocation;
 import ru.vsu.csf.sqlportal.model.Table;
 import ru.vsu.csf.sqlportal.model.User;
-import ru.vsu.csf.sqlportal.repository.ExhaustedDbRepository;
+import ru.vsu.csf.sqlportal.repository.DbLocationRepository;
 import ru.vsu.csf.sqlportal.repository.UserRepository;
 import ru.vsu.csf.sqlportal.service.ExcelHelperService;
 
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
 public class ExcelHelperServiceImpl implements ExcelHelperService {
 
     @Autowired
-    private ExhaustedDbRepository exhaustedDbRepository;
+    private DbLocationRepository dbLocationRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -44,24 +43,24 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
 
     @Transactional
     @Override
-    public ExhaustedDBResponse save(String dbName, MultipartFile file) throws IOException {
+    public DbLocationResponse save(String dbName, MultipartFile file) throws IOException {
 
         String authorLogin = SecurityContextHolder.getContext().getAuthentication().getName();
         User author = userRepository.findByLogin(authorLogin).orElseThrow(
                 () -> new ResourceNotFoundException("User", "login", authorLogin)
         );
-        ExhaustedDb exhaustedDb = new ExhaustedDb(
+        DbLocation dbLocation = new DbLocation(
                 dbName,
                 null,
                 author);
-        ExhaustedDb savedDb = exhaustedDbRepository.save(exhaustedDb);
+        DbLocation savedDb = dbLocationRepository.save(dbLocation);
 
 //        InputStream in = file.getInputStream();
 
         File currDir = new File(".");
         String path = currDir.getAbsolutePath();
         fileLocation = path.substring(0, path.length() - 1).concat("src\\main\\resources\\excel\\")
-                .concat(exhaustedDb.getId().toString())
+                .concat(dbLocation.getId().toString())
                 .concat(".xlsx");
 
         File newFile = new File(fileLocation);
@@ -79,37 +78,37 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
 
 //        fileLocation = fileLocation.concat(savedDb.getId().toString()).concat(".xlsx");
         savedDb.setPath(fileLocation);
-        savedDb = exhaustedDbRepository.save(savedDb);
-        return convertToExhaustedDBResponse(savedDb);
+        savedDb = dbLocationRepository.save(savedDb);
+        return convertToDbLocationResponse(savedDb);
     }
 
     @Override
-    public Page<ExhaustedDBResponse> getAllDBs(int page, int size, boolean sort) {
+    public Page<DbLocationResponse> getAllDBs(int page, int size, boolean sort) {
         Sort sortOrder = sort ? Sort.by("name").ascending() : Sort.by("name").descending();
-        Page<ExhaustedDb> exhaustedDbs = exhaustedDbRepository.findAll(PageRequest.of(page, size, sortOrder));
-        long totalElements = exhaustedDbs.getTotalElements();
-        List<ExhaustedDBResponse> exhaustedDBResponses = exhaustedDbs.stream()
-                .map(this::convertToExhaustedDBResponse)
+        Page<DbLocation> dbLocations = dbLocationRepository.findAll(PageRequest.of(page, size, sortOrder));
+        long totalElements = dbLocations.getTotalElements();
+        List<DbLocationResponse> dbLocationRespons = dbLocations.stream()
+                .map(this::convertToDbLocationResponse)
                 .collect(Collectors.toList());
-        return new PageImpl<>(exhaustedDBResponses, PageRequest.of(page, size), totalElements);
+        return new PageImpl<>(dbLocationRespons, PageRequest.of(page, size), totalElements);
     }
 
     @Override
-    public List<ExhaustedDBResponse> getAllDBs() {
-        return exhaustedDbRepository.findAll().stream()
-                .map(this::convertToExhaustedDBResponse)
+    public List<DbLocationResponse> getAllDBs() {
+        return dbLocationRepository.findAll().stream()
+                .map(this::convertToDbLocationResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Page<ExhaustedDBResponse> getAllDBsByAuthorId(Long authorId, int page, int size, boolean sort) {
+    public Page<DbLocationResponse> getAllDBsByAuthorId(Long authorId, int page, int size, boolean sort) {
         Sort sortOrder = sort ? Sort.by("name").ascending() : Sort.by("name").descending();
-        Page<ExhaustedDb> exhaustedDbs = exhaustedDbRepository.findAllByAuthorId(authorId, PageRequest.of(page, size, sortOrder));
-        long totalElements = exhaustedDbs.getTotalElements();
-        List<ExhaustedDBResponse> exhaustedDBResponses = exhaustedDbs.stream()
-                .map(this::convertToExhaustedDBResponse)
+        Page<DbLocation> dbLocations = dbLocationRepository.findAllByAuthorId(authorId, PageRequest.of(page, size, sortOrder));
+        long totalElements = dbLocations.getTotalElements();
+        List<DbLocationResponse> dbLocationRespons = dbLocations.stream()
+                .map(this::convertToDbLocationResponse)
                 .collect(Collectors.toList());
-        return new PageImpl<>(exhaustedDBResponses, PageRequest.of(page, size), totalElements);
+        return new PageImpl<>(dbLocationRespons, PageRequest.of(page, size), totalElements);
     }
 
     @Deprecated
@@ -122,16 +121,16 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
 
     @Override
     public Database getDB(Long db_id) throws IOException {
-        ExhaustedDb exhaustedDbRecord = exhaustedDbRepository.findById(db_id).orElseThrow(
-                () -> new ResourceNotFoundException("ExhaustedDB", "id", db_id)
+        DbLocation dbLocationRecord = dbLocationRepository.findById(db_id).orElseThrow(
+                () -> new ResourceNotFoundException("DbLocation", "id", db_id)
         );
 
-        FileInputStream file = new FileInputStream(new File(exhaustedDbRecord.getPath()));
+        FileInputStream file = new FileInputStream(new File(dbLocationRecord.getPath()));
 //        FileInputStream file = new FileInputStream(new File("C:\\Users\\kate2\\Desktop\\диплом\\sql-portal\\src\\main\\resources\\excel\\Книга1.xlsx"));
 
 //        Database db = new Database("DB1");
 
-        Database db = new Database(exhaustedDbRecord.getName());
+        Database db = new Database(dbLocationRecord.getName());
         Workbook workbook = new XSSFWorkbook(file);
 
         for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
@@ -191,25 +190,25 @@ public class ExcelHelperServiceImpl implements ExcelHelperService {
     @Override
     public void deleteDB(Long db_id) {
         User user = getCurrentUser();
-        ExhaustedDb exhaustedDb = exhaustedDbRepository.findById(db_id).orElseThrow(
-                () -> new ResourceNotFoundException("ExhaustedDB", "id", db_id)
+        DbLocation dbLocation = dbLocationRepository.findById(db_id).orElseThrow(
+                () -> new ResourceNotFoundException("DbLocation", "id", db_id)
         );
-        if (!user.getId().equals(exhaustedDb.getAuthor().getId())) {
+        if (!user.getId().equals(dbLocation.getAuthor().getId())) {
             throw new AbuseRightsException(user.getLogin());
         }
-        File file = new File(exhaustedDb.getPath());
+        File file = new File(dbLocation.getPath());
         if (file.delete()) {
-            exhaustedDbRepository.delete(exhaustedDb);
+            dbLocationRepository.delete(dbLocation);
         } else {
             //todo throw some exception (mb just runtime ex)
         }
     }
 
-    private ExhaustedDBResponse convertToExhaustedDBResponse(ExhaustedDb exhaustedDb) {
-        return new ExhaustedDBResponse(exhaustedDb.getId(),
-                exhaustedDb.getName(),
-                exhaustedDb.getAuthor().getId(),
-                exhaustedDb.getAuthor().getFirstName() + " " + exhaustedDb.getAuthor().getLastName());
+    private DbLocationResponse convertToDbLocationResponse(DbLocation dbLocation) {
+        return new DbLocationResponse(dbLocation.getId(),
+                dbLocation.getName(),
+                dbLocation.getAuthor().getId(),
+                dbLocation.getAuthor().getFirstName() + " " + dbLocation.getAuthor().getLastName());
     }
 
     private User getCurrentUser() {

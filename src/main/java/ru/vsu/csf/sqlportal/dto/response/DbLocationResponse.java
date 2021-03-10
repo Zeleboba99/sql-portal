@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class ExhaustedDBResponse {
+public class DbLocationResponse {
     private Long id;
     private String name;
     private Long author_id;

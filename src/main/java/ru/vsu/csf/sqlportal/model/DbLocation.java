@@ -6,15 +6,16 @@ import lombok.Setter;
 import javax.persistence.*;
 import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
+import java.util.List;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "exhausted_dbs")
-public class ExhaustedDb {
+@Table(name = "db_locations")
+public class DbLocation {
     @Id
-    @SequenceGenerator(name = "exhaustedDbSeq", sequenceName = "EXHAUSTED_DB_SEQUENCE", allocationSize = 1)
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "exhaustedDbSeq")
+    @SequenceGenerator(name = "dbLocationSeq", sequenceName = "DB_LOCATION_SEQUENCE", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "dbLocationSeq")
     private Long id;
 
     @NotNull
@@ -29,10 +30,13 @@ public class ExhaustedDb {
     @JoinColumn(name = "author_id")
     private User author;
 
-    public ExhaustedDb() {
+    @OneToMany(mappedBy = "dbLocation", cascade = CascadeType.REMOVE)
+    private List<Test> tests;
+
+    public DbLocation() {
     }
 
-    public ExhaustedDb(@NotNull String name, @NotNull String path, User author) {
+    public DbLocation(@NotNull String name, @NotNull String path, User author) {
         this.name = name;
         this.path = path;
         this.author = author;

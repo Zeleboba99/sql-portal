@@ -24,8 +24,8 @@ public class Test {
     private Integer maxAttemptsCnt;
 
     @ManyToOne
-    @JoinColumn(name = "exhausted_db_id")
-    private ExhaustedDb exhaustedDB;
+    @JoinColumn(name = "db_location_id")
+    private DbLocation dbLocation;
 
     @ManyToOne
     @JoinColumn(name = "course_id")
@@ -34,13 +34,16 @@ public class Test {
     @OneToMany(mappedBy = "test", cascade = CascadeType.REMOVE)
     private List<Question> questions;
 
+    @OneToMany(mappedBy = "test", cascade = CascadeType.REMOVE)
+    private List<Attempt> attempts;
+
     public Test() {
     }
 
-    public Test(String name, Integer maxAttemptsCnt, ExhaustedDb exhaustedDB, Course course, List<Question> questions) {
+    public Test(String name, Integer maxAttemptsCnt, DbLocation dbLocation, Course course, List<Question> questions) {
         this.name = name;
         this.maxAttemptsCnt = maxAttemptsCnt;
-        this.exhaustedDB = exhaustedDB;
+        this.dbLocation = dbLocation;
         this.course = course;
         this.questions = questions;
     }
