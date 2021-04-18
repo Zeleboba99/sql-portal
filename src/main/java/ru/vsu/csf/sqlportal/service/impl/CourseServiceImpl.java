@@ -12,11 +12,13 @@ import ru.vsu.csf.sqlportal.dto.response.CourseResponse;
 import ru.vsu.csf.sqlportal.exception.AbuseRightsException;
 import ru.vsu.csf.sqlportal.exception.ResourceNotFoundException;
 import ru.vsu.csf.sqlportal.model.Course;
-import ru.vsu.csf.sqlportal.model.Role;
 import ru.vsu.csf.sqlportal.model.User;
 import ru.vsu.csf.sqlportal.repository.CourseRepository;
 import ru.vsu.csf.sqlportal.repository.UserRepository;
+import ru.vsu.csf.sqlportal.service.ConverterService;
 import ru.vsu.csf.sqlportal.service.CourseService;
+
+import static ru.vsu.csf.sqlportal.service.ConverterService.convertToCourseResponse;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,7 +37,7 @@ public class CourseServiceImpl implements CourseService {
         Page<Course> coursePage = courseRepository.findAllByAuthorId(author_id, PageRequest.of(page, size, sortOrder));
         long totalElements = coursePage.getTotalElements();
         List<CourseResponse> courseResponses = coursePage.stream().map(
-                CourseServiceImpl::convertToCourseResponse
+                ConverterService::convertToCourseResponse
         ).collect(Collectors.toList());
         return new PageImpl<>(courseResponses, PageRequest.of(page, size), totalElements);
     }
@@ -46,7 +48,7 @@ public class CourseServiceImpl implements CourseService {
         Page<Course> courseResponsePage = courseRepository.findAll(PageRequest.of(page, size, sortOrder));
         long totalElements = courseResponsePage.getTotalElements();
         List<CourseResponse> courseResponses = courseResponsePage.stream().map(
-                CourseServiceImpl::convertToCourseResponse
+                ConverterService::convertToCourseResponse
         ).collect(Collectors.toList());
         return new PageImpl<>(courseResponses, PageRequest.of(page, size), totalElements);
     }
@@ -56,11 +58,7 @@ public class CourseServiceImpl implements CourseService {
         Course course = courseRepository.findById(course_id).orElseThrow(
                 () -> new ResourceNotFoundException("Course", "id", course_id)
         );
-        return new CourseResponse(course.getId(),
-                course.getName(),
-                course.getDescription(),
-                course.getAuthor().getId(),
-                course.getAuthor().getFirstName() + " " + course.getAuthor().getLastName());
+        return convertToCourseResponse(course);
     }
 
     @Override
@@ -74,7 +72,7 @@ public class CourseServiceImpl implements CourseService {
                 author);
 
         Course newCourse = courseRepository.save(course);
-        return convertToCourseResponse(newCourse);
+        return convertToCourseResponse(course);
     }
 
     @Override
@@ -101,7 +99,7 @@ public class CourseServiceImpl implements CourseService {
         course.setName(courseRequest.getName());
         course.setDescription(courseRequest.getDescription());
         Course updatedCourse = courseRepository.save(course);
-        return convertToCourseResponse(updatedCourse);
+        return convertToCourseResponse(course);
     }
 
 
@@ -109,16 +107,6 @@ public class CourseServiceImpl implements CourseService {
         String authorLogin = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByLogin(authorLogin).orElseThrow(
                 () -> new ResourceNotFoundException("User", "login", authorLogin)
-        );
-    }
-
-    private static CourseResponse convertToCourseResponse(Course course) {
-        return new CourseResponse(
-                course.getId(),
-                course.getName(),
-                course.getDescription(),
-                course.getAuthor().getId(),
-                course.getAuthor().getFirstName() + " " + course.getAuthor().getLastName()
         );
     }
 }

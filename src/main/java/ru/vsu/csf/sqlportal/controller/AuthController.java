@@ -5,9 +5,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import ru.vsu.csf.sqlportal.dto.request.LoginRequest;
@@ -15,10 +12,8 @@ import ru.vsu.csf.sqlportal.dto.request.SignupRequest;
 import ru.vsu.csf.sqlportal.dto.response.LoginResponse;
 import ru.vsu.csf.sqlportal.dto.response.UserResponse;
 import ru.vsu.csf.sqlportal.model.Role;
-import ru.vsu.csf.sqlportal.model.User;
 import ru.vsu.csf.sqlportal.security.jwt.JwtUtils;
 import ru.vsu.csf.sqlportal.service.UserService;
-import ru.vsu.csf.sqlportal.service.impl.UserDetailsImpl;
 
 import javax.validation.Valid;
 
@@ -40,26 +35,9 @@ public class AuthController {
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getLogin(), loginRequest.getPassword()));
-
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtils.generateJwtToken(loginRequest.getLogin());
-
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        String role = userDetails.getAuthorities().stream().findFirst().get().toString();
-
-        User user = userService.findById(userDetails.getId());
-
-        return ResponseEntity.ok(new LoginResponse(jwt,
-                userDetails.getId(),
-                userDetails.getUsername(),
-                user.getFirstName(),
-                user.getLastName(),
-                role));
+        LoginResponse loginResponse = userService.authenticateUser(loginRequest);
+        return ResponseEntity.ok(loginResponse);
     }
-
 
     @PostMapping("/signup")
     @PreAuthorize("hasAuthority('ADMIN')")
@@ -69,17 +47,7 @@ public class AuthController {
                     .badRequest()
                     .body("Error: Username is already taken!");
         }
-
-        // Create new user's account
-
-        User user = new User(
-                signUpRequest.getFirstName(),
-                signUpRequest.getLastName(),
-                signUpRequest.getLogin(),
-                encoder.encode(signUpRequest.getPassword()),
-                Role.valueOf(signUpRequest.getRole()));
-
-        userService.save(user);
+        userService.registerUser(signUpRequest);
         return ResponseEntity.ok().body("");
     }
 
@@ -109,14 +77,25 @@ public class AuthController {
     @PreAuthorize("hasAnyAuthority('TEACHER', 'ADMIN')")
     public Page<UserResponse> getAllStudents(@RequestParam("page") int page,
                                              @RequestParam("size") int size,
-                                             @RequestParam(value = "sort", defaultValue = "true") boolean sort) {
-        return userService.getAllByRole(Role.STUDENT, page, size, sort);
+                                             @RequestParam(value = "sort", defaultValue = "true") boolean sort,
+                                             @RequestParam(value = "search", defaultValue = "") String search) {
+        if (search.isEmpty()) {
+            return userService.getAllByRole(Role.STUDENT, page, size, sort);
+        } else {
+            return userService.searchStudents(search, page, size);
+        }
     }
 
     @DeleteMapping("/users/{user_id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public void deleteUser(@PathVariable("user_id") Long user_id) {
         userService.deleteUser(user_id);
+    }
+
+    @PatchMapping("/users/changePassword")
+    @PreAuthorize("hasAnyAuthority('TEACHER', 'STUDENT')")
+    public void changePassword(@Valid @RequestBody String newPassword) {
+        userService.changePassword(newPassword);
     }
 }
 

@@ -22,6 +22,9 @@ public class Attempt {
     @Column(name = "created_at")
     private Date createdAt;
 
+    @Column(name = "mark")
+    private Integer mark;
+
     @ManyToOne
     @JoinColumn(name = "test_id")
     private Test test;
@@ -33,8 +36,9 @@ public class Attempt {
     @OneToMany(mappedBy = "attempt", cascade = CascadeType.REMOVE)
     private List<Answer> answers;
 
-    public Attempt(Date createdAt, Test test, User author, List<Answer> answers) {
+    public Attempt(Date createdAt, Integer mark, Test test, User author, List<Answer> answers) {
         this.createdAt = createdAt;
+        this.mark = mark;
         this.test = test;
         this.author = author;
         this.answers = answers;

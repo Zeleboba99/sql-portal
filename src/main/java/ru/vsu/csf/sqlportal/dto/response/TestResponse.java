@@ -12,8 +12,9 @@ import java.util.List;
 public class TestResponse {
     private Long id;
     private String name;
+    private Integer number;
     private Integer maxAttemptsCnt;
-    private DbLocationResponse dbLocation;
+    private DbInfoResponse dbInfoResponse;
     private CourseResponse course;
     private List<QuestionResponse> questions;
 }

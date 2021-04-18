@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class DbLocationRequest {
+public class DbInfoRequest {
     private Long id;
     private String name;
     private Long author_id;

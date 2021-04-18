@@ -7,6 +7,8 @@ import lombok.Setter;
 @Setter
 public class TestRequest {
     private String name;
+    private Integer number;
+    private Long previousTestId;
     private Integer maxAttemptsCnt;
-    private DbLocationRequest dbLocation;
+    private DbInfoRequest dbInfoRequest;
 }

@@ -5,9 +5,10 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class DbLocationResponse {
+public class DbInfoResponse {
     private Long id;
     private String name;
+    private byte[] schemaImage;
     private Long author_id;
     private String author;
 }

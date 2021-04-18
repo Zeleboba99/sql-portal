@@ -20,12 +20,15 @@ public class Test {
     @Column(name="name")
     private String name;
 
+    @Column(name="numb")
+    private Integer number;
+
     @Column(name="max_attempts_cnt")
     private Integer maxAttemptsCnt;
 
     @ManyToOne
-    @JoinColumn(name = "db_location_id")
-    private DbLocation dbLocation;
+    @JoinColumn(name = "db_info_id")
+    private DbInfo dbInfo;
 
     @ManyToOne
     @JoinColumn(name = "course_id")
@@ -40,10 +43,11 @@ public class Test {
     public Test() {
     }
 
-    public Test(String name, Integer maxAttemptsCnt, DbLocation dbLocation, Course course, List<Question> questions) {
+    public Test(String name, Integer number, Integer maxAttemptsCnt, DbInfo dbInfo, Course course, List<Question> questions) {
         this.name = name;
+        this.number = number;
         this.maxAttemptsCnt = maxAttemptsCnt;
-        this.dbLocation = dbLocation;
+        this.dbInfo = dbInfo;
         this.course = course;
         this.questions = questions;
     }

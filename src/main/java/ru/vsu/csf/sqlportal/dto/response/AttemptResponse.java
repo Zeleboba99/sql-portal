@@ -13,6 +13,7 @@ import java.util.List;
 public class AttemptResponse {
     private Long id;
     private Date createdAt;
+    private Integer mark;
     private TestResponse test;
     private UserResponse author;
     private List<QuestionResponse> questions;

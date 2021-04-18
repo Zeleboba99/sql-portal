@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface TestRepository extends JpaRepository<Test, Long> {
-    List<Test> findAllByCourse_Id(Long course_id);
+    List<Test> findByCourse_IdOrderByNumber(Long course_id);
 }

@@ -5,18 +5,28 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import ru.vsu.csf.sqlportal.dto.request.LoginRequest;
 import ru.vsu.csf.sqlportal.dto.request.SignupRequest;
+import ru.vsu.csf.sqlportal.dto.response.LoginResponse;
 import ru.vsu.csf.sqlportal.dto.response.UserResponse;
 import ru.vsu.csf.sqlportal.exception.ResourceNotFoundException;
 import ru.vsu.csf.sqlportal.model.Role;
 import ru.vsu.csf.sqlportal.model.User;
 import ru.vsu.csf.sqlportal.repository.UserRepository;
+import ru.vsu.csf.sqlportal.security.jwt.JwtUtils;
+import ru.vsu.csf.sqlportal.service.ConverterService;
 import ru.vsu.csf.sqlportal.service.UserService;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static ru.vsu.csf.sqlportal.service.ConverterService.convertToUserResponse;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -24,7 +34,55 @@ public class UserServiceImpl implements UserService {
     PasswordEncoder encoder;
 
     @Autowired
+    AuthenticationManager authenticationManager;
+
+    @Autowired
+    JwtUtils jwtUtils;
+
+    @Autowired
     private UserRepository userRepository;
+
+    @Override
+    public LoginResponse authenticateUser(LoginRequest loginRequest) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginRequest.getLogin(), loginRequest.getPassword()));
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String jwt = jwtUtils.generateJwtToken(loginRequest.getLogin());
+
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        String role = userDetails.getAuthorities().stream().findFirst().get().toString();
+
+        User user = findById(userDetails.getId());
+
+        return new LoginResponse(jwt,
+                userDetails.getId(),
+                userDetails.getUsername(),
+                user.getFirstName(),
+                user.getLastName(),
+                role);
+    }
+
+    @Override
+    public User registerUser(SignupRequest signupRequest) {
+        User user = new User(
+                signupRequest.getFirstName(),
+                signupRequest.getLastName(),
+                signupRequest.getLogin(),
+                encoder.encode(signupRequest.getPassword()),
+                Role.valueOf(signupRequest.getRole()));
+        return save(user);
+    }
+
+    @Override
+    public void changePassword(String password) {
+        String userLogin = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByLogin(userLogin).orElseThrow(
+                () -> new ResourceNotFoundException("User", "login", userLogin)
+        );
+        user.setPassword(encoder.encode(password));
+        userRepository.save(user);
+    }
 
     @Override
     public Boolean existsByLogin(String login) {
@@ -65,7 +123,7 @@ public class UserServiceImpl implements UserService {
         Page<User> usersPage = userRepository.findAllByRole(role, PageRequest.of(page, size, sortOrder));
         long totalElements = usersPage.getTotalElements();
         List<UserResponse> userResponses = usersPage.stream()
-                .map(this::convertToUserResponse).collect(Collectors.toList());
+                .map(ConverterService::convertToUserResponse).collect(Collectors.toList());
         return new PageImpl<>(userResponses, PageRequest.of(page, size), totalElements);
     }
 
@@ -77,12 +135,23 @@ public class UserServiceImpl implements UserService {
         return convertToUserResponse(user);
     }
 
-    private UserResponse convertToUserResponse(User user) {
-        return new UserResponse(user.getId(),
-                user.getLogin(),
-                user.getFirstName(),
-                user.getLastName(),
-                user.getRole().name());
-    }
+    @Override
+    public Page<UserResponse> searchStudents(String search, int page, int size) {
+        String searchValue = search.replaceAll("\\s+", "").toLowerCase();
+        List<UserResponse> userResponses = userRepository.findAll().stream()
+                .filter(user -> user.getRole() == Role.STUDENT)
+                .filter(user -> {
+                    String userFullNameV1 = user.getFirstName().concat(user.getLastName()).toLowerCase();
+                    String userFullNameV2 = user.getLastName().concat(user.getFirstName()).toLowerCase();
+                    return userFullNameV1.contains(searchValue) ||
+                            userFullNameV2.contains(searchValue) ||
+                            user.getLogin().contains(searchValue);
+                })
+                .map(ConverterService::convertToUserResponse)
+                .collect(Collectors.toList());
 
+        int start =  (int)PageRequest.of(page, size).getOffset();
+        int end = Math.min((start + PageRequest.of(page, size).getPageSize()), userResponses.size());
+        return new PageImpl<>(userResponses.subList(start, end), PageRequest.of(page, size), userResponses.size());
+    }
 }

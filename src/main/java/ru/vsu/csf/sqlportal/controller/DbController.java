@@ -10,7 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import ru.vsu.csf.sqlportal.dto.response.DbLocationResponse;
+import ru.vsu.csf.sqlportal.dto.response.DbInfoResponse;
 import ru.vsu.csf.sqlportal.model.Database;
 import ru.vsu.csf.sqlportal.service.ExcelHelperService;
 
@@ -20,9 +20,7 @@ import java.util.List;
 @CrossOrigin
 @RestController
 @RequestMapping("/api/dbs")
-public class CreateDBController {
-
-    private final static String FILENAME = "Книга1.xlsx";
+public class DbController {
     @Autowired
     private ExcelHelperService excelHelperService;
 
@@ -33,51 +31,42 @@ public class CreateDBController {
     }
 
     @PreAuthorize("hasAnyAuthority('STUDENT', 'TEACHER')")
+    @GetMapping("/db-info/{id}")
+    public ResponseEntity<DbInfoResponse> getDBInfo(@PathVariable("id") Long id) throws IOException {
+        return ResponseEntity.status(HttpStatus.OK).body(excelHelperService.getDBInfoById(id));
+    }
+
+    @PreAuthorize("hasAnyAuthority('STUDENT', 'TEACHER')")
     @GetMapping("/pageable")
-    public Page<DbLocationResponse> getDBsPage(@RequestParam("page") int page,
-                                               @RequestParam("size") int size,
-                                               @RequestParam(value = "sort", defaultValue = "true") boolean sort) throws IOException {
+    public Page<DbInfoResponse> getDBsPage(@RequestParam("page") int page,
+                                           @RequestParam("size") int size,
+                                           @RequestParam(value = "sort", defaultValue = "true") boolean sort) throws IOException {
         return excelHelperService.getAllDBs(page, size, sort);
     }
 
     @PreAuthorize("hasAnyAuthority('STUDENT', 'TEACHER')")
     @GetMapping
-    public List<DbLocationResponse> getAllDBs() throws IOException {
+    public List<DbInfoResponse> getAllDBs() throws IOException {
         return excelHelperService.getAllDBs();
     }
 
     @PreAuthorize("hasAnyAuthority('STUDENT', 'TEACHER')")
     @GetMapping("/author/{author_id}")
-    public Page<DbLocationResponse> getDBsByAuthorId(@PathVariable("author_id") Long author_id,
-                                                     @RequestParam("page") int page,
-                                                     @RequestParam("size") int size,
-                                                     @RequestParam(value = "sort", defaultValue = "true") boolean sort) throws IOException {
+    public Page<DbInfoResponse> getDBsByAuthorId(@PathVariable("author_id") Long author_id,
+                                                 @RequestParam("page") int page,
+                                                 @RequestParam("size") int size,
+                                                 @RequestParam(value = "sort", defaultValue = "true") boolean sort) throws IOException {
         return excelHelperService.getAllDBsByAuthorId(author_id, page, size, sort);
-    }
-
-    @Deprecated
-    @GetMapping("/downloadDB/{id}")
-    public ResponseEntity<?> downloadDB(@PathVariable("id") Long id) {
-        String message = "";
-        try {
-            InputStreamResource file = excelHelperService.getExcelDB(id);
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + FILENAME)
-                    .contentType(MediaType.parseMediaType("application/octet-stream"))
-                    .body(file);
-        } catch (Exception e){
-            message = "Could not download the file";
-            return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body(message);
-        }
     }
 
     @PreAuthorize("hasAuthority('TEACHER')")
     @PostMapping("/uploadDB/{dbName}")
     public ResponseEntity<?> uploadDB(@RequestParam("file") MultipartFile multipartFile,
+                                      @RequestParam(value = "schemaImage", required = false) MultipartFile schemaImage,
                                            @PathVariable("dbName") String dbName){
         String message = "";
         try {
-            DbLocationResponse response = excelHelperService.save(dbName, multipartFile);
+            DbInfoResponse response = excelHelperService.save(dbName, schemaImage, multipartFile);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         }
         catch (Exception e){

@@ -43,7 +43,7 @@ public class User {
     private List<Course> courses;
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.REMOVE)
-    private List<DbLocation> dbLocations;
+    private List<DbInfo> dbInfos;
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.REMOVE)
     private List<Answer> answers;

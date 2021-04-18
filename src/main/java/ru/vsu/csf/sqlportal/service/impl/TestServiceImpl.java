@@ -17,12 +17,14 @@ import ru.vsu.csf.sqlportal.service.TestService;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static ru.vsu.csf.sqlportal.service.ConverterService.*;
+
 @Service
 public class TestServiceImpl implements TestService {
     @Autowired
     private TestRepository testRepository;
     @Autowired
-    private DbLocationRepository dbLocationRepository;
+    private DbInfoRepository dbInfoRepository;
     @Autowired
     private CourseRepository courseRepository;
     @Autowired
@@ -36,19 +38,12 @@ public class TestServiceImpl implements TestService {
 
     @Override
     public List<TestResponse> getAllTestForCourse(Long course_id) {
-        List<Test> tests = testRepository.findAllByCourse_Id(course_id);
+        List<Test> tests = testRepository.findByCourse_IdOrderByNumber(course_id);
         return tests.stream()
                 .map(t -> {
-                    DbLocation dbLocation = t.getDbLocation();
-                    DbLocationResponse dbLocationResponse = convertToDbLocationResponse(dbLocation);
-                    TestResponse testResponse = new TestResponse(
-                            t.getId(),
-                            t.getName(),
-                            t.getMaxAttemptsCnt(),
-                            dbLocationResponse,
-                            null,
-                            null
-                    );
+                    DbInfo dbInfo = t.getDbInfo();
+                    DbInfoResponse dbInfoResponse = convertToDbInfoResponse(dbInfo);
+                    TestResponse testResponse = convertToTestResponse(t, dbInfoResponse, null, null);
                     return testResponse;
                 })
                 .collect(Collectors.toList());
@@ -56,13 +51,12 @@ public class TestServiceImpl implements TestService {
 
     @Override
     public TestResponse getTestById(Long test_id) {
-
         User currentUser = getCurrentUser();
         Test test = testRepository.findById(test_id).orElseThrow(
                 () -> new ResourceNotFoundException("Test", "id", test_id)
         );
-        DbLocation dbLocation = test.getDbLocation();
-        DbLocationResponse dbLocationResponse = convertToDbLocationResponse(dbLocation);
+        DbInfo dbInfo = test.getDbInfo();
+        DbInfoResponse dbInfoResponse = convertToDbInfoResponse(dbInfo);
         List<QuestionResponse> questionList = test.getQuestions().stream().map(
                 question -> {
                     AnswerResponse answerResponse = new AnswerResponse(null, "", null);
@@ -77,23 +71,11 @@ public class TestServiceImpl implements TestService {
                         }
                     }
 
-                    QuestionResponse questionResponse = new QuestionResponse(
-                            question.getId(),
-                            question.getText(),
-                            answerResponse,
-                            null
-                    );
+                    QuestionResponse questionResponse = convertToQuestionResponse(question, answerResponse, null);
                     return questionResponse;
                 })
                 .collect(Collectors.toList());
-        TestResponse testResponse = new TestResponse(
-                test.getId(),
-                test.getName(),
-                test.getMaxAttemptsCnt(),
-                dbLocationResponse,
-                null,
-                questionList
-        );
+        TestResponse testResponse = convertToTestResponse(test, dbInfoResponse, null, questionList);
         return testResponse;
     }
 
@@ -109,27 +91,53 @@ public class TestServiceImpl implements TestService {
         if (!course.getAuthor().getId().equals(author.getId())) {
             throw new AbuseRightsException(String.format("User '%s' is not author for course '%s'", author.getLogin(), course.getId()));
         }
-        DbLocation dbLocation = dbLocationRepository.findById(testRequest.getDbLocation().getId()).orElseThrow(
-                () -> new ResourceNotFoundException("DbLocation", "id", testRequest.getDbLocation().getId())
+        DbInfo dbInfo = dbInfoRepository.findById(testRequest.getDbInfoRequest().getId()).orElseThrow(
+                () -> new ResourceNotFoundException("DbInfo", "id", testRequest.getDbInfoRequest().getId())
         );
-        Test test = new Test(testRequest.getName(),
-                testRequest.getMaxAttemptsCnt(),
-                dbLocation,
-                course,
-                null);
+        Test test;
+        if (testRequest.getPreviousTestId() != 0) {
+            Test previousTest = testRepository.findById(testRequest.getPreviousTestId()).orElseThrow(
+                    () -> new ResourceNotFoundException("Test", "id", testRequest.getPreviousTestId())
+            );
+            if (!previousTest.getCourse().getId().equals(course_id)) {
+                throw new AbuseRightsException(String.format("Test with id '%s' is not related for course '%s'", previousTest.getId(), course_id));
+            }
+
+            List<Test> testsForUpdate = testRepository.findByCourse_IdOrderByNumber(course_id).stream()
+                    .filter(t -> t.getNumber() > previousTest.getNumber())
+                    .collect(Collectors.toList());
+            increaseTestNumbers(testsForUpdate);
+
+            test = new Test(testRequest.getName(),
+                    previousTest.getNumber() + 1,
+                    testRequest.getMaxAttemptsCnt(),
+                    dbInfo,
+                    course,
+                    null);
+        } else {
+            List<Test> testsForUpdate = testRepository.findByCourse_IdOrderByNumber(course_id);
+            increaseTestNumbers(testsForUpdate);
+            test = new Test(testRequest.getName(),
+                    1,
+                    testRequest.getMaxAttemptsCnt(),
+                    dbInfo,
+                    course,
+                    null);
+        }
+
         test = testRepository.save(test);
-        return new TestResponse(
-                test.getId(),
-                test.getName(),
-                test.getMaxAttemptsCnt(),
-                null,
-                null,
-                null
-        );
+        return convertToTestResponse(test, null, null, null);
     }
 
     @Override
     public void deleteTestById(Long test_id) {
+        Test test = testRepository.findById(test_id).orElseThrow(
+                () -> new ResourceNotFoundException("Test", "id", test_id)
+        );
+        List<Test> testsForUpdate = testRepository.findByCourse_IdOrderByNumber(test.getCourse().getId()).stream()
+                .filter(t -> t.getNumber() > test.getNumber())
+                .collect(Collectors.toList());
+        decreaseTestNumbers(testsForUpdate);
         testRepository.deleteById(test_id);
     }
 
@@ -189,68 +197,62 @@ public class TestServiceImpl implements TestService {
                 () -> new ResourceNotFoundException("Test", "id", test_id)
         );
         User user = getCurrentUser();
+        int previousAttemptsCnt = getAttemptsForTest(test_id).size();
 
-        Attempt attempt = new Attempt(new Date(), test, user, null);
+        if (test.getMaxAttemptsCnt() <= previousAttemptsCnt) {
+            throw new AbuseRightsException(String.format("No available attempts for user '%s'", user.getLogin()));
+        }
+
+        Attempt attempt = new Attempt(new Date(), 0, test, user, null);
         Attempt finalAttempt = attemptRepository.save(attempt);
-        List<Answer> answers = questionRequests.stream()
-                .map(q -> {
-                    Question question = questionRepository.findById(q.getId()).orElseThrow(
-                            () -> new ResourceNotFoundException("Question", "id", q.getId())
-                    );
-                    //TODO save all answers
-                    Answer answer = new Answer(q.getAnswer().getText(), null, user, question, finalAttempt);
-                    return answerRepository.save(answer);
-                }).collect(Collectors.toList());
+        questionRequests.forEach(q -> {
+            Question question = questionRepository.findById(q.getId()).orElseThrow(
+                    () -> new ResourceNotFoundException("Question", "id", q.getId())
+            );
+            //TODO save all answers
+            Answer answer = new Answer(q.getAnswer().getText(), null, user, question, finalAttempt);
+            answerRepository.save(answer);
+        });
     }
 
     @Override
     public List<AttemptResponse> getAttemptsForTest(Long test_id) {
         User user = getCurrentUser();
-        return getAttemptsForTest(user.getId(), test_id);
+        return getAttemptsForTest(user.getId(), test_id).stream()
+                .sorted(Comparator.comparing(AttemptResponse::getCreatedAt).reversed())
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<AttemptResponse> getAttemptsForTest(Long user_id, Long test_id) {
-        List<Attempt> attempts = attemptRepository.getAllByTestIdAndAuthorId(test_id, user_id);
+        List<Attempt> attempts = attemptRepository.getAllByTestIdAndAuthorId(test_id, user_id).stream()
+                .sorted(Comparator.comparing(Attempt::getCreatedAt).reversed())
+                .collect(Collectors.toList());
         return attempts.stream().map(attempt -> {
             List<QuestionResponse> questionResponses = attempt.getAnswers().stream().map(answer -> {
                 AnswerResponse answerResponse = new AnswerResponse(answer.getId(), answer.getText(), answer.getGrade());
                 Question question = answer.getQuestion();
-                return new QuestionResponse(
-                        question.getId(),
-                        question.getText(),
-                        answerResponse,
-                        null);
+                return convertToQuestionResponse(question, answerResponse, null);
             }).collect(Collectors.toList());
-            return new AttemptResponse(attempt.getId(),
-                    attempt.getCreatedAt(),
-                    null,
-                    new UserResponse(attempt.getAuthor().getId(), attempt.getAuthor().getLogin(), attempt.getAuthor().getFirstName(), attempt.getAuthor().getLastName(), null),
-                    questionResponses);
+            UserResponse userResponse = convertToUserResponse(attempt.getAuthor());
+            return convertToAttemptResponse(attempt, null, userResponse ,questionResponses);
         }).collect(Collectors.toList());
     }
 
     @Override
     public AttemptResponse getAttemptById(Long attempt_id) {
         User user = getCurrentUser();
+        //TODO check that user is author or teacher or else throw abuse of rights
         Attempt attempt = attemptRepository.findById(attempt_id).orElseThrow(
                 () -> new ResourceNotFoundException("Attempt", "id", attempt_id)
         );
         List<QuestionResponse> questionResponses = attempt.getAnswers().stream().map(answer -> {
             AnswerResponse answerResponse = new AnswerResponse(answer.getId(), answer.getText(), answer.getGrade());
             Question question = answer.getQuestion();
-            return new QuestionResponse(
-                    question.getId(),
-                    question.getText(),
-                    answerResponse,
-                    null);
+            return convertToQuestionResponse(question, answerResponse, null);
         }).collect(Collectors.toList());
-        return new AttemptResponse(attempt.getId(),
-                attempt.getCreatedAt(),
-                null,
-                new UserResponse(attempt.getAuthor().getId(), attempt.getAuthor().getLogin(), attempt.getAuthor().getFirstName(), attempt.getAuthor().getLastName(), null),
-                questionResponses);
-
+        UserResponse userResponse = convertToUserResponse(attempt.getAuthor());
+        return convertToAttemptResponse(attempt, null, userResponse, questionResponses);
     }
 
     @Override
@@ -259,24 +261,17 @@ public class TestServiceImpl implements TestService {
         Test test = testRepository.findById(test_id).orElseThrow(
                 () -> new ResourceNotFoundException("Test", "id", test_id)
         );
-        DbLocation dbLocation = dbLocationRepository.findById(testRequest.getDbLocation().getId()).orElseThrow(
-                () -> new ResourceNotFoundException("DbLocation", "id", testRequest.getDbLocation().getId())
+        DbInfo dbInfo = dbInfoRepository.findById(testRequest.getDbInfoRequest().getId()).orElseThrow(
+                () -> new ResourceNotFoundException("DbInfo", "id", testRequest.getDbInfoRequest().getId())
         );
         if (!isCurrentUserCourseAuthor(test.getCourse().getId())) {
             throw new AbuseRightsException(String.format("User '%s' is not author for course '%s'", user.getLogin(), test.getCourse().getId()));
         }
         test.setName(testRequest.getName());
         test.setMaxAttemptsCnt(testRequest.getMaxAttemptsCnt());
-        test.setDbLocation(dbLocation);
+        test.setDbInfo(dbInfo);
         Test updatedTest = testRepository.save(test);
-        return new TestResponse(
-                updatedTest.getId(),
-                updatedTest.getName(),
-                updatedTest.getMaxAttemptsCnt(),
-                convertToDbLocationResponse(updatedTest.getDbLocation()),
-                null,
-                null
-        );
+        return convertToTestResponse(updatedTest, convertToDbInfoResponse(updatedTest.getDbInfo()), null, null);
     }
 
     @Override
@@ -328,19 +323,12 @@ public class TestServiceImpl implements TestService {
                     Answer answer = answerRepository.findById(answerRequest.getId()).orElseThrow(
                             () -> new ResourceNotFoundException("Answer", "id", answerRequest.getId())
                     );
-                    if (!answer.getAttempt().getId().equals(attempt_id)){
+                    if (!answer.getAttempt().getId().equals(attempt_id)) {
                         throw new RuntimeException("Answers assign to different attempts");
                     }
                     answer.setGrade(answerRequest.getGrade());
                     answerRepository.save(answer);
                 });
-    }
-
-    private DbLocationResponse convertToDbLocationResponse(DbLocation dbLocation) {
-        return new DbLocationResponse(dbLocation.getId(),
-                dbLocation.getName(),
-                dbLocation.getAuthor().getId(),
-                dbLocation.getAuthor().getFirstName() + " " + dbLocation.getAuthor().getLastName());
     }
 
     private boolean isCurrentUserCourseAuthor(Long course_id) {
@@ -362,4 +350,11 @@ public class TestServiceImpl implements TestService {
         );
     }
 
+    private void increaseTestNumbers(List<Test> tests) {
+        tests.forEach(test -> test.setNumber(test.getNumber() + 1));
+    }
+
+    private void decreaseTestNumbers(List<Test> tests) {
+        tests.forEach(test -> test.setNumber(test.getNumber() - 1));
+    }
 }
